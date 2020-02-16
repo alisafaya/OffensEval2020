@@ -19,7 +19,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 set_id = sys.argv[1]
 max_features = 30000
-learning_rate = 0.0005
+learning_rate = 0.001
 maxlen = 25
 batch_size = 32
 folds = 4
@@ -63,7 +63,7 @@ for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
 
     sequence_input = Input(shape=(maxlen,), dtype='int32')
     embedding_layer = Embedding(max_features,
-                                128,
+                                256,
                                 input_length=maxlen)(sequence_input)
 
     x = Bidirectional(GRU(128, return_sequences=True, dropout=0.1, recurrent_dropout=0.1))(embedding_layer)
@@ -73,7 +73,7 @@ for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
     x = Dense(1, activation='sigmoid')(x)
     model = Model(sequence_input, x)
 
-    opt = TFOptimizer(tf.keras.optimizers.Adam())
+    opt = TFOptimizer(tf.keras.optimizers.Adam(learning_rate=learning_rate))
     model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['binary_accuracy'])
 
     print('Train...')
