@@ -31,6 +31,7 @@ epochs = 3
 folds = 4
 seed = 1234
 
+
 def model_hybrid():
     filter_sizes = [1,2,3,5]
     num_filters = 36
@@ -90,32 +91,6 @@ def model_hybrid():
     return model
 
 
-def model_cnn():
-    filter_sizes = [1,2,3,5]
-    num_filters = 36
-
-    inp = Input(shape=(maxlen,))
-    x = Embedding(max_features, embed_size)(inp)
-    x = Reshape((maxlen, embed_size, 1))(x)
-
-    maxpool_pool = []
-    for i in range(len(filter_sizes)):
-        conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], embed_size),
-                                     kernel_initializer='he_normal', activation='relu')(x)
-        maxpool_pool.append(MaxPool2D(pool_size=(maxlen - filter_sizes[i] + 1, 1))(conv))
-
-    z = Concatenate(axis=1)(maxpool_pool)   
-    z = Flatten()(z)
-    z = Dropout(0.1)(z)
-
-    outp = Dense(1, activation="sigmoid")(z)
-
-    model = Model(inputs=inp, outputs=outp)
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    
-    return model
-
-
 # Preprocessing data sets
 def get_padded_dataset(dataset, _tokenizer=None, char_level=False):
     labels = [ x['label'] for x in dataset]
@@ -134,7 +109,6 @@ def get_padded_dataset(dataset, _tokenizer=None, char_level=False):
     data_seqs_padded = pad_sequences(data_seqs, maxlen=( maxcharlen if char_level else maxlen))
     labels = np.array(labels)
     return data_seqs_padded, labels, _tokenizer
-
 
 print('Loading data...')
 all_data = read_file(set_id)
@@ -162,23 +136,15 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
 
     print('Build model...')
 
-    # model = model_hybrid()
-    model = model_cnn()
-
-    # print('Train...')
-    # model.fit([x_c_train, x_train], y_train,
-    #         batch_size=batch_size,
-    #         epochs=epochs,
-    #         validation_data=([x_c_dev, x_dev], y_dev))
+    model = model_hybrid()
 
     print('Train...')
-    model.fit(x_train, y_train,
+    model.fit([x_c_train, x_train], y_train,
             batch_size=batch_size,
             epochs=epochs,
-            validation_data=(x_dev, y_dev))
+            validation_data=([x_c_dev, x_dev], y_dev))
 
-    # y_pred = model.predict([x_c_test, x_test])
-    y_pred = model.predict(x_test)
+    y_pred = model.predict([x_c_test, x_test])
     y_pred = [ 1 if s >= 0.5 else 0 for s in y_pred ]
     all_true += list(y_test)
     all_pred += y_pred
