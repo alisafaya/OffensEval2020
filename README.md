@@ -48,3 +48,16 @@ Offensive Speech Detection
 | Danish    | 0.75      | 0.39     | 0.51     |
 | Greek     | 0.69      | 0.55     | 0.61     |
 | Turkish   | 0.62      | 0.40     | 0.49     |
+
+### Language Specific Models
+
+| Set                 | Precision | Recall   | F1-Score |
+|:-------------------:|:---------:|:--------:|:--------:|
+| Turkish (Bert)      | 0.76      | 0.63     | 0.69     |
+| Greek   (Bert-CNN)  | 0.71      | 0.72     | 0.71     |
+| Danish  (Bert-CNN)  | 0.67      | 0.33     | 0.44     |
+| Turkish (Bert-CNN)  | 0.65      | 0.64     | 0.64     |
+| Greek   (Bert-LSTM) | 0.81      | 0.63     | 0.71     |
+| Danish  (Bert-LSTM) | 0.61      | 0.35     | 0.45     |
+| Turkish (Bert-LSTM) | 0.60      | 0.67     | 0.64     |
+| Greek   (Bert-Attn) | 0.73      | 0.70     | 0.72     |

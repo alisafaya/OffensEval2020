@@ -93,7 +93,6 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
     x_test, y_test, tokenizer = get_padded_dataset(test, _tokenizer=tokenizer)
     
     print(len(tokenizer.word_docs), 'unique tokens')
-    print(len(ctokenizer.word_docs), 'unique char')
     print(x_train.shape[0], 'train sequences')
     print(x_dev.shape[0], 'dev sequences')
     print(x_test.shape[0], 'test sequences')
