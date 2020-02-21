@@ -6,22 +6,22 @@ from keras.utils import to_categorical
 from keras.optimizers import Nadam
 from keras.engine.input_layer import Input
 from keras.models import Model
-from keras_attention import AttentionWithContext
-from keras.layers.wrappers import Bidirectional
-from keras.callbacks.callbacks import EarlyStopping
 from sklearn.metrics import classification_report, confusion_matrix
 from data import *
 import tensorflow as tf
+import numpy as np
 from keras.optimizers import TFOptimizer
 import sys
 import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+os.environ['CUDA_VISIBLE_DEVICES']= "1,7"
 
 set_id = sys.argv[1]
+# set_id = "da"
 max_features = 30000
 max_char_features = 512
-learning_rate = 1e-3
+learning_rate = 5e-4
 embed_size = 256
 char_embed_size = 512
 batch_size = 32
@@ -31,19 +31,35 @@ epochs = 3
 folds = 4
 seed = 1234
 
-def model_cnn():
+def model_cnn(embedding_matrix):
     filter_sizes = [1,2,3,5]
-    num_filters = 36
-
+    num_filters = 24
+    
     inp = Input(shape=(maxlen,))
-    x = Embedding(max_features, embed_size)(inp)
-    x = Reshape((maxlen, embed_size, 1))(x)
+    em1 = Embedding(max_features, embed_size)(inp)
+    em1 = Reshape((maxlen, embed_size, 1))(em1)
+    
+    if embedding_matrix is not None: 
+        concatenated_embed_size = embed_size + embedding_matrix.shape[1]
+        em2 = Embedding(embedding_matrix.shape[0], embedding_matrix.shape[1], weights=[embedding_matrix], trainable=False)(inp)
+        em2 = Reshape((maxlen, embedding_matrix.shape[1], 1))(em2)
+        x = Concatenate(axis=2)([em1, em2])   
+    else:
+        concatenated_embed_size = embed_size
+        x = em1
 
     maxpool_pool = []
+    
     for i in range(len(filter_sizes)):
         conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], embed_size),
-                                     kernel_initializer='he_normal', activation='relu')(x)
+                                     kernel_initializer='he_normal', activation='relu')(em1)
         maxpool_pool.append(MaxPool2D(pool_size=(maxlen - filter_sizes[i] + 1, 1))(conv))
+
+    if embedding_matrix is not None: 
+        for i in range(len(filter_sizes)):
+            conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], concatenated_embed_size),
+                                        kernel_initializer='he_normal', activation='relu')(x)
+            maxpool_pool.append(MaxPool2D(pool_size=(maxlen - filter_sizes[i] + 1, 1))(conv))
 
     z = Concatenate(axis=1)(maxpool_pool)   
     z = Flatten()(z)
@@ -77,11 +93,23 @@ def get_padded_dataset(dataset, _tokenizer=None, char_level=False):
     return data_seqs_padded, labels, _tokenizer
 
 
+def get_embeddings(word_index, set_id):
+    with open("vec/" + set_id+ ".vec", "r" ) as fi:
+        vocab_size, embed_size = (int(s) for s in fi.readline().split())
+        embeddings = np.random.normal(scale=0.1, size=(len(word_index) + 1, embed_size))
+        vocabs = list(word_index.keys())
+        for l in fi:
+            line = l.split()
+            word = line[0]
+            if word in vocabs:
+                embeddings[word_index[word]] = [ float(f) for f in line[-embed_size:] ]
+                del vocabs[vocabs.index(word)]
+    return embeddings
+
+
 print('Loading data...')
 all_data = read_file(set_id)
-all_data = read_file(set_id)
 all_pred, all_true = [], []
-
 
 fold_no = 1
 for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_seed=seed):
@@ -92,6 +120,7 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
     x_dev, y_dev, tokenizer = get_padded_dataset(dev, _tokenizer=tokenizer)
     x_test, y_test, tokenizer = get_padded_dataset(test, _tokenizer=tokenizer)
     
+
     print(len(tokenizer.word_docs), 'unique tokens')
     print(x_train.shape[0], 'train sequences')
     print(x_dev.shape[0], 'dev sequences')
@@ -99,7 +128,9 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
 
     print('Build model...')
 
-    model = model_cnn()
+    # model = model_cnn(get_embeddings(tokenizer.word_index, set_id))
+    model = model_cnn(None)
+    # print(model.summary())
 
     print('Train...')
     model.fit(x_train, y_train,

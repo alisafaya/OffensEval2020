@@ -27,17 +27,18 @@ elif set_id == "da":
 
 use_gpu = True
 seed = 1234
-batch_size = 4
+batch_size = 64
 max_length = 64
 label_list = [0, 1]
 folds = 4
-n_epochs = 6
-lr = 5e-6
+n_epochs = 10
+lr = 1e-5
+
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
 model_path = "OffensEval/"+ set_id +"_berturk_cnn_model"
 
 if use_gpu and torch.cuda.is_available():
-    device = torch.device("cuda:6")
+    device = torch.device("cuda:7")
 else:
     device = torch.device("cpu")
 
@@ -79,20 +80,44 @@ def generate_batch_data(x, y, batch_size):
         yield x, y, 1
 
 
+class AttentionNetBert(nn.Module):
+    def __init__(self, embed_size, maxlen, bert_model):
+        super(AttentionNetBert, self).__init__()
+        drp = 0.1
+        self.embedding_dropout = nn.Dropout2d(0.1)
+        self.lstm = nn.LSTM(embed_size, 128, bidirectional=True, batch_first=True)
+        self.lstm2 = nn.GRU(128*2, 64, bidirectional=True, batch_first=True)
+        self.attention_layer = Attention(128, maxlen)
+        self.linear = nn.Linear(64*2 , 64)
+        self.gelu = nn.GELU()
+        self.out = nn.Linear(64, 1)
+        self.sigmoid = nn.Sigmoid()
+        self.bert_model = bert_model
+
+    def forward(self, x):
+        h_embedding = self.bert_model(x)[0]
+        h_embedding = self.embedding_dropout(h_embedding)
+        h_lstm, _ = self.lstm(h_embedding)
+        h_lstm, _ = self.lstm2(h_lstm)
+        h_lstm_atten = self.attention_layer(h_lstm)
+        conc = self.gelu(self.linear(h_lstm_atten))
+        out = self.out(conc)
+        return self.sigmoid(out)
+
+
 if __name__ == "__main__":
     fold_no = 0
     all_data = read_file(set_id)
 
-    if set_id == "da":
-        config = AutoConfig.from_pretrained(pretrained_model + 'config.json')
-        bert_model = AutoModel.from_pretrained(pretrained_model, config=config)
-    else:
-        bert_model = AutoModel.from_pretrained(pretrained_model)
 
     all_pred, all_test = [], []
     for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
-        if device.type == "cuda":
-            bert_model.to(device)
+    
+        if set_id == "da":
+            config = AutoConfig.from_pretrained(pretrained_model + 'config.json')
+            bert_model = AutoModel.from_pretrained(pretrained_model, config=config)
+        else:
+            bert_model = AutoModel.from_pretrained(pretrained_model)
     
     # ###
     # random.seed(seed)
@@ -110,20 +135,7 @@ if __name__ == "__main__":
         dev_inputs, dev_masks, y_val = prepare_set(dev, max_length=max_length)
         test_inputs, test_masks, y_test = prepare_set(test, max_length=max_length)
 
-        with torch.no_grad():
-            x_train = torch.cat([ bert_model(i, attention_mask=m)[0] for i, m, b in generate_batch_data(train_inputs, train_masks, batch_size) ]) 
-            x_val = torch.cat([ bert_model(i, attention_mask=m)[0] for i, m, b in generate_batch_data(dev_inputs, dev_masks, batch_size) ]) 
-            x_test = torch.cat([ bert_model(i, attention_mask=m)[0] for i, m, b in generate_batch_data(test_inputs, test_masks, batch_size) ]) 
-
-        bert_model.to(torch.device("cpu"))
-        torch.cuda.empty_cache()
-
-        embed_num = x_train.shape[1]
-        embed_dim = x_train.shape[2]
-        
-        # model = CNN_Text(embed_dim)
-        # model = BiLSTM(embed_dim)
-        model = AttentionNet(embed_dim, embed_num)
+        model = AttentionNetBert(768, max_length, bert_model)
         model.to(device)
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
         loss_fn = nn.BCELoss()
@@ -135,7 +147,7 @@ if __name__ == "__main__":
             train_loss = 0 
             model.train(True)
 
-            for x_batch, y_batch, batch in generate_batch_data(x_train, y_train, batch_size):
+            for x_batch, y_batch, batch in generate_batch_data(train_inputs, y_train, batch_size):
                 optimizer.zero_grad()
                 y_pred = model(x_batch)
                 loss = loss_fn(y_pred, y_batch)
@@ -150,7 +162,7 @@ if __name__ == "__main__":
             with torch.no_grad(): 
 
                 val_loss, batch = 0, 1
-                for x_batch, y_batch, batch in generate_batch_data(x_val, y_val, batch_size):
+                for x_batch, y_batch, batch in generate_batch_data(dev_inputs, y_val, batch_size):
                     y_pred = model(x_batch)
                     loss = loss_fn(y_pred, y_batch)
                     val_loss += loss.item()
@@ -169,7 +181,7 @@ if __name__ == "__main__":
         with torch.no_grad():
             y_preds = []
             print("Evaluating fold", fold_no)
-            for x_batch, y_batch, batch in generate_batch_data(x_test, y_test, batch_size):
+            for x_batch, y_batch, batch in generate_batch_data(test_inputs, y_test, batch_size):
                 y_pred = model(x_batch)
                 y_pred = y_pred.cpu().numpy().flatten() 
                 y_preds += [ 1 if p >= 0.5 else 0 for p in y_pred ] 
@@ -177,9 +189,6 @@ if __name__ == "__main__":
             print(classification_report(y_test.cpu().numpy().tolist(), y_preds))
         all_pred += y_preds
 
-        del x_train
-        del x_val
-        del x_test
         del model
         torch.cuda.empty_cache()
 
