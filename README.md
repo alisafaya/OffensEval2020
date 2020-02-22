@@ -8,7 +8,7 @@ Offensive Speech Detection
 
 | Set       | TF-IDF with SVM | ML-DistilBert | Bi-GRU with Attention | Word-CNN model        | BERT-CNN model        |
 |:---------:|:---------------:|:-------------:|:---------------------:|:---------------------:|:---------------------:|
-| Arabic    | 0.63            | 0.64          | 0.68                  | __0.71__              | -                     |
+| Arabic    | 0.63            | 0.64          | 0.68                  | __0.71__  (fasttext)  | -                     |
 | Danish    | 0.46            | 0.42          | 0.47                  | __0.54__              | 0.45 (No fine-tuning) |
 | Greek     | 0.60            | 0.69          | 0.60                  | 0.61                  | __0.75__              |
 | Turkish   | 0.40            | 0.54          | 0.52                  | 0.49                  | __0.70__              |
@@ -44,10 +44,25 @@ Offensive Speech Detection
 
 | Set       | Precision | Recall   | F1-Score |
 |:---------:|:---------:|:--------:|:--------:|
-| Arabic    | 0.88      | 0.59     | 0.71     |
+| Arabic    | 0.86      | 0.63     | 0.73     | 
 | Danish    | 0.81      | 0.41     | 0.54     |
 | Greek     | 0.71      | 0.55     | 0.62     |
 | Turkish   | 0.62      | 0.40     | 0.49     |
+
+<!--
+Arabic concatenate with aravec
+max_features = 30000
+max_char_features = 512
+learning_rate = 5e-4
+embed_size = 256
+char_embed_size = 512
+batch_size = 32
+maxlen = 32
+maxcharlen = 128
+epochs = 4
+folds = 4
+seed = 1234
+-->
 
 ### Language Specific Models
 
@@ -62,3 +77,4 @@ Offensive Speech Detection
 | Turkish (Bert-CNN)  | 0.70      | 0.70     | 0.70     |
 | Turkish (Bert-LSTM) | 0.68      | 0.70     | 0.69     |
 | Turkish (Bert-Attn) | 0.68      | 0.70     | 0.69     |
+

@@ -130,3 +130,6 @@ dmypy.json
 .vscode/
 OffensEval/
 osact/
+
+#folders
+models/

@@ -1,4 +1,5 @@
-from keras.layers import Dense, Embedding, GlobalMaxPooling1D, CuDNNGRU, GRU, LSTM, Conv1D, Conv2D, MaxPooling1D, MaxPool2D, Flatten, Dropout, Concatenate, Reshape, GlobalAveragePooling1D
+from keras.layers import Dense, Embedding, GlobalMaxPooling1D, CuDNNGRU, GRU, LSTM, Conv1D, Conv2D, MaxPooling1D, \
+    MaxPool2D, Flatten, Dropout, Concatenate, Reshape, GlobalAveragePooling1D
 from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from keras.models import Sequential
@@ -13,9 +14,10 @@ import numpy as np
 from keras.optimizers import TFOptimizer
 import sys
 import os
+import json
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-os.environ['CUDA_VISIBLE_DEVICES']= "1,7"
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = "1,7"
 
 set_id = sys.argv[1]
 # set_id = "da"
@@ -27,41 +29,42 @@ char_embed_size = 512
 batch_size = 32
 maxlen = 32
 maxcharlen = 128
-epochs = 3
+epochs = 4
 folds = 4
 seed = 1234
 
+
 def model_cnn(embedding_matrix):
-    filter_sizes = [1,2,3,5]
+    filter_sizes = [1, 2, 3, 5]
     num_filters = 24
-    
+
     inp = Input(shape=(maxlen,))
     em1 = Embedding(max_features, embed_size)(inp)
     em1 = Reshape((maxlen, embed_size, 1))(em1)
-    
-    if embedding_matrix is not None: 
-        concatenated_embed_size = embed_size + embedding_matrix.shape[1]
-        em2 = Embedding(embedding_matrix.shape[0], embedding_matrix.shape[1], weights=[embedding_matrix], trainable=False)(inp)
-        em2 = Reshape((maxlen, embedding_matrix.shape[1], 1))(em2)
-        x = Concatenate(axis=2)([em1, em2])   
+
+    if embedding_matrix is not None:
+        concatenated_embed_size = embedding_matrix.shape[1] + embed_size
+        em2 = Embedding(embedding_matrix.shape[0], embedding_matrix.shape[1], weights=[embedding_matrix],
+                        trainable=False)(inp)
+        x = Reshape((maxlen, embedding_matrix.shape[1], 1))(em2)
+        x = Concatenate(axis=2)([em1, x])
     else:
         concatenated_embed_size = embed_size
         x = em1
 
     maxpool_pool = []
-    
+
+    # for i in range(len(filter_sizes)):
+    #     conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], embed_size),
+    #                                  kernel_initializer='he_normal', activation='relu')(em1)
+    #     maxpool_pool.append(MaxPool2D(pool_size=(maxlen - filter_sizes[i] + 1, 1))(conv))
+
     for i in range(len(filter_sizes)):
-        conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], embed_size),
-                                     kernel_initializer='he_normal', activation='relu')(em1)
+        conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], concatenated_embed_size),
+                      kernel_initializer='he_normal', activation='relu')(x)
         maxpool_pool.append(MaxPool2D(pool_size=(maxlen - filter_sizes[i] + 1, 1))(conv))
 
-    if embedding_matrix is not None: 
-        for i in range(len(filter_sizes)):
-            conv = Conv2D(num_filters, kernel_size=(filter_sizes[i], concatenated_embed_size),
-                                        kernel_initializer='he_normal', activation='relu')(x)
-            maxpool_pool.append(MaxPool2D(pool_size=(maxlen - filter_sizes[i] + 1, 1))(conv))
-
-    z = Concatenate(axis=1)(maxpool_pool)   
+    z = Concatenate(axis=1)(maxpool_pool)
     z = Flatten()(z)
     z = Dropout(0.1)(z)
 
@@ -69,49 +72,49 @@ def model_cnn(embedding_matrix):
 
     model = Model(inputs=inp, outputs=outp)
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    
+
     return model
 
 
-# Preprocessing data sets
-def get_padded_dataset(dataset, _tokenizer=None, char_level=False):
-    labels = [ x['label'] for x in dataset]
-    data = [ x['text'] for x in dataset]
+def get_embeddings(set_id):
+    return np.load("vec/%s/%s.npy" % (set_id, set_id))
+
+
+def get_word_index(set_id):
+    return json.loads(open("vec/%s/%s_index.json" % (set_id, set_id), "r").read())
+
+
+def get_padded_dataset(dataset, _tokenizer=None, char_level=False, use_index=False):
+    labels = [x['label'] for x in dataset]
+    data = [x['text'] for x in dataset]
 
     # Preprocessing text
     if _tokenizer is None:
-        print('construct tokenizer')
         if char_level:
             _tokenizer = Tokenizer(num_words=max_char_features, char_level=char_level)
         else:
             _tokenizer = Tokenizer(num_words=max_features)
-        _tokenizer.fit_on_texts(data)
-    
+
+        if use_index:
+            _tokenizer.word_index = get_word_index(set_id)
+        else:
+            _tokenizer.fit_on_texts(data)
+
     data_seqs = _tokenizer.texts_to_sequences(data)
-    data_seqs_padded = pad_sequences(data_seqs, maxlen=( maxcharlen if char_level else maxlen))
+    data_seqs_padded = pad_sequences(data_seqs, maxlen=(maxcharlen if char_level else maxlen))
     labels = np.array(labels)
     return data_seqs_padded, labels, _tokenizer
-
-
-def get_embeddings(word_index, set_id):
-    with open("vec/" + set_id+ ".vec", "r" ) as fi:
-        vocab_size, embed_size = (int(s) for s in fi.readline().split())
-        embeddings = np.random.normal(scale=0.1, size=(len(word_index) + 1, embed_size))
-        vocabs = list(word_index.keys())
-        for l in fi:
-            line = l.split()
-            word = line[0]
-            if word in vocabs:
-                embeddings[word_index[word]] = [ float(f) for f in line[-embed_size:] ]
-                del vocabs[vocabs.index(word)]
-    return embeddings
 
 
 print('Loading data...')
 all_data = read_file(set_id)
 all_pred, all_true = [], []
 
+# list to save probs for ensembling
+all_probs = []
+
 fold_no = 1
+print("all Data size:" + str(len(all_data)))
 for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_seed=seed):
     print("fold", fold_no)
     fold_no += 1
@@ -119,31 +122,40 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
     x_train, y_train, tokenizer = get_padded_dataset(train)
     x_dev, y_dev, tokenizer = get_padded_dataset(dev, _tokenizer=tokenizer)
     x_test, y_test, tokenizer = get_padded_dataset(test, _tokenizer=tokenizer)
-    
 
-    print(len(tokenizer.word_docs), 'unique tokens')
     print(x_train.shape[0], 'train sequences')
     print(x_dev.shape[0], 'dev sequences')
     print(x_test.shape[0], 'test sequences')
 
     print('Build model...')
 
-    # model = model_cnn(get_embeddings(tokenizer.word_index, set_id))
-    model = model_cnn(None)
-    # print(model.summary())
+    emb_index = get_word_index(set_id)
+    emb_mat = get_embeddings(set_id)[[0, ] + list(emb_index.get(k, 0) for k in tokenizer.word_index)]
+    model = model_cnn(emb_mat)
+    # model = model_cnn(None)
 
     print('Train...')
     model.fit(x_train, y_train,
-            epochs=epochs,
-            batch_size=batch_size,
-            validation_data=(x_dev, y_dev))
+              epochs=epochs,
+              batch_size=batch_size,
+              validation_data=(x_dev, y_dev))
 
     y_pred = model.predict(x_test)
-    y_pred = [ 1 if s >= 0.5 else 0 for s in y_pred ]
+
+    # save these probabilities into a list to save them in a file
+    all_probs += y_pred.flatten().tolist()
+
+    y_pred = [1 if s >= 0.5 else 0 for s in y_pred]
+
     all_true += list(y_test)
     all_pred += y_pred
 
     print(classification_report(y_test, y_pred))
+
+# save the probs to a file
+
+np.save("word_cnn_gold", np.array(all_true))
+np.save("word_cnn_probs1", all_probs)
 
 print("Total evaluation:\n", classification_report(all_true, all_pred))
 print(confusion_matrix(all_true, all_pred))
