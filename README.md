@@ -77,4 +77,5 @@ seed = 1234
 | Turkish (Bert-CNN)  | 0.70      | 0.70     | 0.70     |
 | Turkish (Bert-LSTM) | 0.68      | 0.70     | 0.69     |
 | Turkish (Bert-Attn) | 0.68      | 0.70     | 0.69     |
+| Arabic (Ensemble "Cnn+BiGRU") | 0.91      | 0.59     | 0.71     |
 
