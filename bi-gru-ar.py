@@ -22,12 +22,12 @@ os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 set_id = sys.argv[1]
 output_id = sys.argv[0].split('.')[0]
 max_features = 30000
-learning_rate = 0.001
+learning_rate = 5e-4
 maxlen = 64
 batch_size = 32
 folds = 4
 seed = 1234
-epochs = 4
+epochs = 5
 output_path = './output/' + set_id + '/' + output_id
 
 
@@ -62,6 +62,7 @@ def get_padded_dataset(dataset, _tokenizer=None, char_level=False, use_index=Fal
 
 
 print('Loading data...')
+pre_data = read_file(set_id + "t")
 all_data = read_file(set_id)
 all_pred, all_true = [], []
 
@@ -69,11 +70,11 @@ all_pred, all_true = [], []
 all_probs = []
 
 fold_no = 1
-for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
+for train, dev, test in fold_iterator_sklearn(all_data, K=folds, random_seed=seed):
     print("fold", fold_no)
     fold_no += 1
 
-    x_train, y_train, tokenizer = get_padded_dataset(train)
+    x_train, y_train, tokenizer = get_padded_dataset(np.concatenate([pre_data , train]))
     x_dev, y_dev, tokenizer = get_padded_dataset(dev, _tokenizer=tokenizer)
     x_test, y_test, tokenizer = get_padded_dataset(test, _tokenizer=tokenizer)
     print(len(tokenizer.word_docs), 'unique tokens')
@@ -103,11 +104,16 @@ for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
     opt = TFOptimizer(tf.keras.optimizers.Adam(lr=learning_rate))
     model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['binary_accuracy'])
 
-    print('Train...')
     model.fit(x_train, y_train,
+              epochs=1,
               batch_size=batch_size,
+              validation_data=(x_dev, y_dev))
+    
+    x_train, y_train, tokenizer = get_padded_dataset(train, _tokenizer=tokenizer)
+
+    model.fit(x_train, y_train,
               epochs=epochs,
-              shuffle=True,
+              batch_size=batch_size,
               validation_data=(x_dev, y_dev))
 
     y_pred = model.predict(x_test)

@@ -25,6 +25,8 @@ elif set_id == "greek":
 elif set_id == "da":
     pretrained_model = './OffensEval/danish_bert_uncased_v2/'
 
+output_id = sys.argv[0].split('.')[0]
+set_id = sys.argv[1]
 use_gpu = True
 seed = 1234
 batch_size = 64
@@ -34,6 +36,7 @@ folds = 4
 n_epochs = 10
 lr = 2e-6
 
+output_path = './output/' + set_id + '/' + output_id
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
 model_path = "OffensEval/"+ set_id +"_berturk_cnn_model"
 
@@ -110,7 +113,7 @@ if __name__ == "__main__":
     all_data = read_file(set_id)
 
 
-    all_pred, all_test = [], []
+    all_pred, all_test, all_probs = [], [], []
     for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
     
         if set_id == "da":
@@ -184,6 +187,7 @@ if __name__ == "__main__":
             for x_batch, y_batch, batch in generate_batch_data(test_inputs, y_test, batch_size):
                 y_pred = model(x_batch)
                 y_pred = y_pred.cpu().numpy().flatten() 
+                all_probs += list(y_pred)
                 y_preds += [ 1 if p >= 0.5 else 0 for p in y_pred ] 
             
             print(classification_report(y_test.cpu().numpy().tolist(), y_preds))
@@ -194,5 +198,7 @@ if __name__ == "__main__":
 
     print("Finished", fold_no, "Evaluation")
     print(classification_report(all_test, all_pred))
+    np.save(output_path + ".probs", np.array(all_probs))
+    np.save(output_path + ".gold", np.array(all_test))
 
 

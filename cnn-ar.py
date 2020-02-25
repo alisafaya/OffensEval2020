@@ -110,6 +110,7 @@ def get_padded_dataset(dataset, _tokenizer=None, char_level=False, use_index=Fal
 
 print('Loading data...')
 all_data = read_file(set_id)
+pre_data = read_file(set_id + "t")
 all_pred, all_true = [], []
 
 # list to save probs for ensembling
@@ -117,11 +118,12 @@ all_probs = []
 
 fold_no = 1
 print("all Data size:" + str(len(all_data)))
-for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_seed=seed):
+for train, dev, test in fold_iterator_sklearn(all_data, K=folds, dev_ratio=0.1, random_seed=seed):
     print("fold", fold_no)
     fold_no += 1
 
-    x_train, y_train, tokenizer = get_padded_dataset(train)
+    ptrain = np.concatenate([pre_data, train])
+    x_train, y_train, tokenizer = get_padded_dataset(ptrain)
     x_dev, y_dev, tokenizer = get_padded_dataset(dev, _tokenizer=tokenizer)
     x_test, y_test, tokenizer = get_padded_dataset(test, _tokenizer=tokenizer)
 
@@ -131,12 +133,20 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
 
     print('Build model...')
 
-    # emb_index = get_word_index(set_id)
-    # emb_mat = get_embeddings(set_id)[[0, ] + list(emb_index.get(k, 0) for k in tokenizer.word_index)]
-    # model = model_cnn(emb_mat)
-    model = model_cnn(None)
+    emb_index = get_word_index(set_id)
+    emb_mat = get_embeddings(set_id)[[0, ] + list(emb_index.get(k, 0) for k in tokenizer.word_index)]
+    model = model_cnn(emb_mat)
+    # model = model_cnn(None)
 
     print('Train...')
+
+    model.fit(x_train, y_train,
+              epochs=1,
+              batch_size=batch_size,
+              validation_data=(x_dev, y_dev))
+    
+    x_train, y_train, tokenizer = get_padded_dataset(train, _tokenizer=tokenizer)
+
     model.fit(x_train, y_train,
               epochs=epochs,
               batch_size=batch_size,
@@ -154,8 +164,8 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
 
     print(classification_report(y_test, y_pred))
 
-# np.save(output_path + ".probs", np.array(all_probs))
-# np.save(output_path + ".gold", np.array(all_true))
+np.save(output_path + ".probs", np.array(all_probs))
+np.save(output_path + ".gold", np.array(all_true))
 
 print("Total evaluation:\n", classification_report(all_true, all_pred))
 print(confusion_matrix(all_true, all_pred))

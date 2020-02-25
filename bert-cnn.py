@@ -1,4 +1,4 @@
-from data import read_file, fold_iterator
+from data import *
 from models import *
 import numpy as np
 import time
@@ -15,30 +15,32 @@ from torch.autograd import Variable
 from sklearn.metrics import classification_report, confusion_matrix
 import unicodedata
 
-
 set_id = sys.argv[1]
+output_id = sys.argv[0].split('.')[0]
 
 if set_id == "tr":
     pretrained_model = 'dbmdz/bert-base-turkish-cased'
 elif set_id == "greek":
     pretrained_model = 'nlpaueb/bert-base-greek-uncased-v1'
 elif set_id == "da":
-    pretrained_model = './OffensEval/danish_bert_uncased_v2/'
+    pretrained_model = './OffensEval/danish_bert_uncased/'
+
+output_path = './output/' + set_id + '/' + output_id
 
 use_gpu = True
 seed = 1234
-batch_size = 128
+batch_size = 64
 max_length = 64
 label_list = [0, 1]
 folds = 4
 n_epochs = 10
 lr = 2e-6
 
-tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+tokenizer = AutoTokenizer.from_pretrained(pretrained_model) if set_id != "da" else BertTokenizer.from_pretrained(pretrained_model)
 model_path = "OffensEval/"+ set_id +"_berturk_cnn_model"
 
 if use_gpu and torch.cuda.is_available():
-    device = torch.device("cuda:5")
+    device = torch.device("cuda:6")
 else:
     device = torch.device("cpu")
 
@@ -67,7 +69,6 @@ def prepare_set(dataset, max_length=256):
 
     return input_ids, input_masks, labels
 
-
 def generate_batch_data(x, y, batch_size):
     i, batch = 0, 0
     for batch, i in enumerate(range(0, len(x) - batch_size, batch_size), 1):
@@ -93,6 +94,7 @@ class CNNBert(nn.Module):
 
     def forward(self, x):
         x = self.bert_model(x)[0]
+        # x = self.emodel.sent2elmo(x)
         x = x.unsqueeze(1)
         x = [F.relu(conv(x)).squeeze(3) for conv in self.convs1] 
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]  
@@ -107,8 +109,8 @@ if __name__ == "__main__":
     all_data = read_file(set_id)
 
 
-    all_pred, all_test = [], []
-    for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
+    all_pred, all_test, all_probs = [], [], []
+    for train, dev, test in fold_iterator_sklearn(all_data, K=folds, random_seed=seed):
     
         if set_id == "da":
             config = BertConfig.from_pretrained(pretrained_model + 'config.json')
@@ -180,16 +182,20 @@ if __name__ == "__main__":
             print("Evaluating fold", fold_no)
             for x_batch, y_batch, batch in generate_batch_data(test_inputs, y_test, batch_size):
                 y_pred = model(x_batch)
-                y_pred = y_pred.cpu().numpy().flatten() 
+                y_pred = y_pred.cpu().numpy().flatten()
+                all_probs += list(y_pred)
                 y_preds += [ 1 if p >= 0.5 else 0 for p in y_pred ] 
             
-            print(classification_report(y_test.cpu().numpy().tolist(), y_preds))
+        print(classification_report(y_test.cpu().numpy().tolist(), y_preds))
         all_pred += y_preds
 
         del model
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
     print("Finished", fold_no, "Evaluation")
     print(classification_report(all_test, all_pred))
+    np.save(output_path + ".probs", np.array(all_probs))
+    np.save(output_path + ".gold", np.array(all_test))
+
 
 
