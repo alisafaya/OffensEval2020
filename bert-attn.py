@@ -109,7 +109,7 @@ if __name__ == "__main__":
     fold_no = 0
     all_data = read_file(set_id)
     all_pred, all_test, all_probs = [], [], []
-    for train, dev, test in fold_iterator(all_data, K=folds, random_seed=seed):
+    for train, dev, test in fold_iterator_sklearn(all_data, K=folds, random_seed=seed):
     
         if set_id == "da":
             config = AutoConfig.from_pretrained(pretrained_model + 'config.json')

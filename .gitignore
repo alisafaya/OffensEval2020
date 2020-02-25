@@ -138,3 +138,6 @@ OffensEval/
 osact/
 output/
 elmo_models/
+runs/
+bert_models/
+bert_data/

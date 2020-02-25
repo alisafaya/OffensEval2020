@@ -2,6 +2,7 @@ from fastai import *
 from fastai.text import *
 import string
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
 from data import *
 import pandas as pd
 
@@ -30,11 +31,23 @@ def pre_process(text):
 
 pretrained_fnames=['Ar-LM-epoch1-acc43','itos']
 
-all_data = read_file("ar")
-train, dev, test = next(fold_iterator(all_data, K=folds, random_seed=seed))
-ar_tok = Tokenizer(lang='ar')
-df_train = pd.DataFrame(train.tolist())
-df_val = pd.DataFrame(dev.tolist())
+df = pd.read_csv(path/'data'/'AR_FINAL.csv')
+print(df.shape)
+np.random.seed(42)
+df_train, df_test = train_test_split(df, test_size=0.25)
+df_train, df_val = train_test_split(df_train, test_size=0.1)
+print(df_train.shape, df_val.shape)
 
-data_clas = TextClasDataBunch.from_df(path, train_df=df_train, valid_df=df_val, text_cols=1, label_cols=2, tokenizer=ar_tok, bs=32, include_bos=False, min_freq=4)
+ar_tok = Tokenizer(lang='ar')
+data_lm = TextLMDataBunch.from_df(path, train_df=df_train, valid_df=df_val, text_cols=0, label_cols=None, tokenizer=ar_tok, bs=32)
+
+learn_lm = language_model_learner(data_lm, AWD_LSTM, drop_mult=0.2, pretrained_fnames=pretrained_fnames)
+
+data_clas = TextClasDataBunch.from_df(path, train_df=df_train, valid_df=df_val, text_cols=0, label_cols=1, tokenizer=ar_tok, bs=32, vocab=data_lm.train_ds.vocab, include_bos=False)
 learn_clas = text_classifier_learner(data_clas, AWD_LSTM, drop_mult=0.2, metrics=[accuracy,FBeta(average='macro')])
+
+learn_clas.fit_one_cycle(15, slice(5e-4/(2.6**4),5e-4))
+
+test_results = [learn_clas.predict(t) for t in df_test["text"]]
+test_results = [ r[1].item() for r in test_results ] 
+print(classification_report(df_test["category"], test_results))

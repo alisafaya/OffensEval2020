@@ -27,9 +27,9 @@ batch_size = 64
 max_length = 64
 label_list = [0, 1]
 folds = 4
-n_epochs = 15
-lr = 5e-4
-gpu_id = 1
+n_epochs = 7
+lr = 1e-3
+gpu_id = 3
 model_path = "elmo_models/"+ set_id + "/"
 
 if use_gpu and torch.cuda.is_available():
@@ -87,6 +87,9 @@ class CNNBert(nn.Module):
 if __name__ == "__main__":
     fold_no = 0
     all_data = read_file(set_id)
+    if set_id == "ar":
+        ptrain = read_file(set_id + "t")
+
     e = Embedder("elmo_models/%s/"%(set_id,))
 
     all_pred, all_test, all_probs = [], [], []
@@ -104,7 +107,11 @@ if __name__ == "__main__":
         fold_no += 1
         print("Starting training fold number", fold_no)
         print([len(x) for x in (train, dev, test)])
-        train_inputs, y_train = prepare_set(train, max_length=max_length)
+        if set_id == "ar":
+            train_inputs, y_train = prepare_set( np.concatenate([ptrain, train]) , max_length=max_length)
+        else:
+            train_inputs, y_train = prepare_set(train, max_length=max_length)
+    
         dev_inputs, y_val = prepare_set(dev, max_length=max_length)
         test_inputs, y_test = prepare_set(test, max_length=max_length)
 
@@ -140,7 +147,10 @@ if __name__ == "__main__":
                     loss = loss_fn(y_pred, y_batch)
                     val_loss += loss.item()
 
-            val_losses.append(val_loss)    
+            val_losses.append(val_loss)
+
+            if set_id == "ar" and epoch == 3:
+                train_inputs, y_train = prepare_set(train, max_length=max_length)
             print("Epoch %d Train loss: %.4f. Validation loss: %.4f. Elapsed time: %.2fs."% (epoch + 1, train_losses[-1], val_losses[-1], elapsed))
 
         #     if best_dev > val_loss:
