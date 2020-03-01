@@ -118,7 +118,7 @@ all_probs = []
 
 fold_no = 1
 print("all Data size:" + str(len(all_data)))
-for train, dev, test in fold_iterator_sklearn(all_data, K=folds, dev_ratio=0.1, random_seed=seed):
+for train, dev, test in fold_iterator_sklearn(all_data, K=folds, random_seed=seed):
     print("fold", fold_no)
     fold_no += 1
 

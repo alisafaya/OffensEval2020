@@ -1,4 +1,4 @@
-from data import read_file, fold_iterator
+from data import *
 from models import *
 import numpy as np
 import time
@@ -20,7 +20,7 @@ set_id = sys.argv[1]
 if set_id == "tr":
     pretrained_model = 'dbmdz/bert-base-turkish-cased'
 elif set_id == "greek":
-    pretrained_model = 'nlpaueb/bert-base-greek-uncased-v1'
+    pretrained_model = './bert_models/greek/checkpoints-25000/' #'nlpaueb/bert-base-greek-uncased-v1'
 elif set_id == "da":
     pretrained_model = './OffensEval/danish_bert_uncased_v2/'
 

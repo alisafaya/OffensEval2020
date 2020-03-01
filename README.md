@@ -64,20 +64,17 @@ folds = 4
 seed = 1234
 -->
 
-### Language Specific Models
+### Final Model
 
 | Set                           | Precision | Recall   | F1-Score |
 |:-----------------------------:|:---------:|:--------:|:--------:|
 | Greek   (Bert)                | 0.81      | 0.65     | 0.73     |
 | Greek   (Bert-CNN)            | 0.80      | 0.71     | 0.75     |
-| Greek   (Bert-LSTM)           | 0.75      | 0.75     | 0.75     |
-| Greek   (Bert-Attn)           | 0.75      | 0.77     | 0.76     |
+| Greek   (Bert-tuned-CNN)      | 0.76      | 0.76     | 0.76     |
 | Danish  (Bert)                | 0.67      | 0.28     | 0.39     |
 | Danish  (Bert-CNN)            | 0.67      | 0.33     | 0.44     |
-| Danish  (Bert-LSTM)           | 0.61      | 0.35     | 0.45     |
+| Danish  (CNN)                 | 0.81      | 0.41     | 0.54     |
 | Turkish (Bert)                | 0.76      | 0.63     | 0.69     |
 | Turkish (Bert-CNN)            | 0.70      | 0.70     | 0.70     |
-| Turkish (Bert-LSTM)           | 0.68      | 0.70     | 0.69     |
-| Turkish (Bert-Attn)           | 0.71      | 0.68     | 0.69     |
-| Arabic (Ensemble "Cnn+BiGRU") | 0.91      | 0.59     | 0.71     |
-| Arabic (TL-ENS "Cnn+BiGRU")   | 0.81      | 0.67     | 0.73     |
+| Arabic  (Bert-CNN)            | 0.81      | 0.75     | 0.78     |
+| Arabic  (CNN "Aravec+Bert")   | 0.85      | 0.76     | 0.80     |

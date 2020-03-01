@@ -12,7 +12,7 @@ from transformers import *
 from torch import nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 import unicodedata
 
 set_id = sys.argv[1]
@@ -21,9 +21,11 @@ output_id = sys.argv[0].split('.')[0]
 if set_id == "tr":
     pretrained_model = 'dbmdz/bert-base-turkish-cased'
 elif set_id == "greek":
-    pretrained_model = 'nlpaueb/bert-base-greek-uncased-v1'
+    pretrained_model = './fold_models/greek/%d/checkpoints-60000' # './bert_models/greek/checkpoints-50000/' #'nlpaueb/bert-base-greek-uncased-v1'
 elif set_id == "da":
     pretrained_model = './OffensEval/danish_bert_uncased/'
+elif set_id == "ar":
+    pretrained_model = './OffensEval/arabic_bert_base/'
 
 output_path = './output/' + set_id + '/' + output_id
 
@@ -34,13 +36,13 @@ max_length = 64
 label_list = [0, 1]
 folds = 4
 n_epochs = 10
-lr = 2e-6
+lr = 1e-5
 
-tokenizer = AutoTokenizer.from_pretrained(pretrained_model) if set_id != "da" else BertTokenizer.from_pretrained(pretrained_model)
-model_path = "OffensEval/"+ set_id +"_berturk_cnn_model"
+tokenizer = BertTokenizer.from_pretrained(pretrained_model) if set_id != "greek" else BertTokenizer.from_pretrained(pretrained_model%(1,))
+model_path = "OffensEval/"+ set_id +"_bert_cnn_model"
 
 if use_gpu and torch.cuda.is_available():
-    device = torch.device("cuda:6")
+    device = torch.device("cuda:4")
 else:
     device = torch.device("cpu")
 
@@ -107,17 +109,17 @@ class CNNBert(nn.Module):
 if __name__ == "__main__":
     fold_no = 0
     all_data = read_file(set_id)
-
-
     all_pred, all_test, all_probs = [], [], []
     for train, dev, test in fold_iterator_sklearn(all_data, K=folds, random_seed=seed):
+        fold_no += 1
     
         if set_id == "da":
             config = BertConfig.from_pretrained(pretrained_model + 'config.json')
             bert_model = BertModel.from_pretrained(pretrained_model, config=config)
+        elif set_id == "greek":
+            bert_model = AutoModel.from_pretrained(pretrained_model % (fold_no,))
         else:
             bert_model = AutoModel.from_pretrained(pretrained_model)
-    
     # ###
     # random.seed(seed)
     # random.shuffle(all_data) # initial shuffle
@@ -127,7 +129,6 @@ if __name__ == "__main__":
     # for train, dev in [(all_data[dev_size:], all_data[:dev_size]), ]:
     # ###
 
-        fold_no += 1
         print("Starting training fold number", fold_no)
         print([len(x) for x in (train, dev, test)])
         train_inputs, train_masks, y_train = prepare_set(train, max_length=max_length)
@@ -140,7 +141,7 @@ if __name__ == "__main__":
         loss_fn = nn.BCELoss()
         train_losses, val_losses = [], []
         
-        best_dev = 1e20
+        best_score = 0
         for epoch in range(n_epochs):
             start_time = time.time()
             train_loss = 0 
@@ -157,24 +158,26 @@ if __name__ == "__main__":
             train_losses.append(train_loss)
             elapsed = time.time() - start_time
             model.eval()
+            val_preds = []
 
             with torch.no_grad(): 
-
                 val_loss, batch = 0, 1
                 for x_batch, y_batch, batch in generate_batch_data(dev_inputs, y_val, batch_size):
                     y_pred = model(x_batch)
                     loss = loss_fn(y_pred, y_batch)
                     val_loss += loss.item()
+                    y_pred = y_pred.cpu().numpy().flatten()
+                    val_preds += [ 1 if p >= 0.5 else 0 for p in y_pred ] 
 
+            val_score = f1_score(y_val.cpu().numpy().tolist(), val_preds, average='macro')
             val_losses.append(val_loss)    
-            print("Epoch %d Train loss: %.4f. Validation loss: %.4f. Elapsed time: %.2fs."% (epoch + 1, train_losses[-1], val_losses[-1], elapsed))
+            print("Epoch %d Train loss: %.4f. Validation F1-Macro: %.4f  Validation loss: %.4f. Elapsed time: %.2fs."% (epoch + 1, train_losses[-1], val_score, val_losses[-1], elapsed))
+            if val_score > best_score:
+                torch.save(model.state_dict(), os.path.join(model_path, "model_%d_.pt" % (fold_no,)))
+                best_score = val_score
 
-        #     if best_dev > val_loss:
-        #         torch.save(model.state_dict(), os.path.join(model_path, "model_%d_.pt" % (fold_no,)))
-        #         best_dev = val_loss
-
-        # model.load_state_dict(torch.load(os.path.join(model_path, "model_%d_.pt" % (fold_no,))))
-        # model.to(device)
+        model.load_state_dict(torch.load(os.path.join(model_path, "model_%d_.pt" % (fold_no,))))
+        model.to(device)
         all_test += y_test.cpu().numpy().tolist()
         model.eval()
         with torch.no_grad():

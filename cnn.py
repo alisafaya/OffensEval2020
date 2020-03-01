@@ -24,7 +24,7 @@ set_id = sys.argv[1]
 # set_id = "da"
 max_features = 30000
 max_char_features = 512
-learning_rate = 5e-4
+learning_rate = 1e-3
 embed_size = 256
 char_embed_size = 512
 batch_size = 32
@@ -117,7 +117,7 @@ all_probs = []
 
 fold_no = 1
 print("all Data size:" + str(len(all_data)))
-for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_seed=seed):
+for train, dev, test in fold_iterator_sklearn(all_data, K=folds, random_seed=seed):
     print("fold", fold_no)
     fold_no += 1
 
@@ -154,8 +154,8 @@ for train, dev, test in fold_iterator(all_data, K=folds, dev_ratio=0.1, random_s
 
     print(classification_report(y_test, y_pred))
 
-# np.save(output_path + ".probs", np.array(all_probs))
-# np.save(output_path + ".gold", np.array(all_true))
+np.save(output_path + ".probs", np.array(all_probs))
+np.save(output_path + ".gold", np.array(all_true))
 
 print("Total evaluation:\n", classification_report(all_true, all_pred))
 print(confusion_matrix(all_true, all_pred))

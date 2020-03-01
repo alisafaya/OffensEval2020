@@ -141,3 +141,5 @@ elmo_models/
 runs/
 bert_models/
 bert_data/
+fold_models/
+fold_data/
