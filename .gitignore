@@ -129,17 +129,6 @@ dmypy.json
 .pyre/
 .vscode/
 
-
 #folders
-models/
-vec/
-data/
 OffensEval/
-osact/
-output/
-elmo_models/
-runs/
-bert_models/
-bert_data/
-fold_models/
-fold_data/
+submissions/
