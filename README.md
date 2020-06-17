@@ -4,7 +4,7 @@
 
 Offensive Speech Detection
 
-### Macro Averged F1-Scores of test sets
+### Macro Averaged F1-Scores of test sets
 
 | Model                     | Arabic | Greek | Turkish | Average |
 |:-------------------------:|:------:|:-----:|:-------:|:-------:|
