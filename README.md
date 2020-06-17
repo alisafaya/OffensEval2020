@@ -1,4 +1,4 @@
-# SemEval2020
+# OffensEval2020
 
 ## OffensEval Sub-task A
 
