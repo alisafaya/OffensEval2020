@@ -1,5 +1,16 @@
 # OffensEval2020
 
+```
+@misc{safaya2020kuisail,
+    title={KUISAIL at SemEval-2020 Task 12: BERT-CNN for Offensive Speech Identification in Social Media},
+    author={Ali Safaya and Moutasem Abdullatif and Deniz Yuret},
+    year={2020},
+    eprint={2007.13184},
+    archivePrefix={arXiv},
+    primaryClass={cs.CL}
+}
+```
+
 ## OffensEval Sub-task A
 
 Offensive Speech Detection
